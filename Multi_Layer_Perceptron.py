@@ -6,9 +6,11 @@ def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
   # print('trainSet: \n', trainSet)
   # print('validationSet: \n', validationSet)
   weights = initNetwork(trainSet.shape[1]-1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
+  '''
   for layer in weights:
     print(np.shape(layer))
     print(layer)
+  '''
 
 def trainTestValidationSplit(relFilePath, hasColumnLabel, hasID):
   data = np.genfromtxt(relFilePath, delimiter=',')
@@ -47,14 +49,21 @@ def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
   hiddenLayer = np.random.rand(attributeCount + 1, hiddenLayerNodes)
   network.append(hiddenLayer)
   # Connecting hidden layers to other hidden layers or to output layer
-  for layerIndex in range(1, hiddenLayers):
+  for layerIndex in range(0, hiddenLayers):
     index = layerIndex + 1
-    if (index == hiddenLayers):
-      hiddenLayer = np.random.rand(hiddenLayerNodes + 1, outputNodes)
-    else:
+    if (index != hiddenLayers):
       hiddenLayer = np.random.rand(hiddenLayerNodes + 1, hiddenLayerNodes)
-    network.append(hiddenLayer)
+      network.append(hiddenLayer)
+  outputLayer = np.random.rand(hiddenLayerNodes + 1, outputNodes)
+  network.append(outputLayer)
   return network
 
-# Parameters are (String relativeFilePath, Boolean columnLablesPresent, Boolean IDColumnPresent)
-main('GlassData.csv', True, True, 2, 9)
+'''
+Parameters are:
+  (String relativeFilePath,
+  Boolean columnLablesPresent,
+  Boolean IDColumnPresent,
+  Int numberOfHiddenLayers,
+  Int numberOfNodesPerHiddenLayer)
+'''
+main('GlassData.csv', True, True, 1, 9)
