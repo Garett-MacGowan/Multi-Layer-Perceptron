@@ -5,7 +5,19 @@ def main():
   data = np.insert(data, 0, 1, axis=1)
   # Setting random weights (eight because first one is theta threshold)
   # Three sets because we need three output neurons
+  weights0 = np.random.rand(1, 8)
+  weights1 = np.random.rand(1, 8)
+  weights2 = np.random.rand(1, 8)
+  initialWeights = [weights0, weights1, weights2]
+  # Train the model
+  finalWeights, totalIterations = train(initialWeights, data)
 
+  # Verify accuracy on test set
+  testData = np.genfromtxt('testSeeds.csv', delimiter=',')
+  testData = np.insert(testData, 0, 1, axis=1)
+  accuracy, precisionAndRecallArray, confusionMatrixArray = test(finalWeights, testData, False)
+  print(accuracy)
+  outputResults(initialWeights, finalWeights, totalIterations, precisionAndRecallArray, confusionMatrixArray)
 
 def outputResults(initialWeights, finalWeights, totalIterations, precisionAndRecallArray, confusionMatrixArray):
   text_file = open('output.txt', 'w')
@@ -29,7 +41,6 @@ def outputResults(initialWeights, finalWeights, totalIterations, precisionAndRec
     text_file.write('\n')
   text_file.close()
 
-
 def activate(totalActivation, threshold):
   if (totalActivation >= threshold):
     return 1
@@ -40,6 +51,20 @@ def predict(weight, inputData):
   threshold = weight[0]
   totalActivation = np.sum(np.dot(weight, inputData))
   return activate(totalActivation, threshold)
+
+def weightTrainer(weight, inputData, classLabel, targetLabel):
+  result = predict(weight, inputData)
+  learningRate = 0.1
+  # If result == 1 and classLabel == targetLabel -> good, don't update
+  # If result != 1 and classLabel == targetLabel -> update weights positively
+  # If result == 1 and classLabel != targetLabel -> update weights negatively
+  if (result != 1 and classLabel == targetLabel):
+    difference = (1) * learningRate
+    weight = (difference * inputData) + weight
+  elif (result == 1 and classLabel != targetLabel):
+    difference = (-1) * learningRate
+    weight = (difference * inputData) + weight
+  return weight
 
 def train(weights, data):
   # Slice (take all of the first dimension (rows)
@@ -82,6 +107,12 @@ def predictionDecider(class1, class2, class3):
   if (class3 == 1):
     return 3
   return 1
+
+def getTotalCorrect(prediction, classLabel):
+  if (prediction == classLabel):
+    return 1
+  else:
+    return 0
 
 def getTruePositives(prediction, classLabel, targetClass):
   if (targetClass == classLabel and prediction == targetClass):
