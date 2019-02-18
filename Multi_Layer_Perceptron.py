@@ -2,7 +2,9 @@ import numpy as np
 import math
 
 def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
-  trainSet, testSet, validationSet = trainTestValidationSplit(relFilePath, hasColumnLabel, hasID)
+  data = readData(relFilePath, hasColumnLabel, hasID)
+  cleanClassLabels(data)
+  trainSet, testSet, validationSet = trainTestValidationSplit(data)
   # print('testSet: \n', testSet)
   # print('trainSet: \n', trainSet)
   # print('validationSet: \n', validationSet)
@@ -11,42 +13,6 @@ def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
   dataToFeed = trainSet[-1:,:-1]
   outputs = np.apply_along_axis(feedforward, 1, dataToFeed, network)
   print('outputs ', outputs)
-
-  '''
-  for layer in weights:
-    print(np.shape(layer))
-    print(layer)
-  '''
-
-def trainTestValidationSplit(relFilePath, hasColumnLabel, hasID):
-  data = np.genfromtxt(relFilePath, delimiter=',')
-  # Removing the column labels
-  if (hasColumnLabel):
-    data = data[1:, :]
-  # Removing the row that contains ID attribute
-  if (hasID):
-    # TODO want to check which column has id before removing first
-    data = data[:, 1:]
-  # Randomizing the data
-  np.random.shuffle(data)
-  split_a = int(0.75 * data.shape[0])
-  split_b = int(0.85 * data.shape[0])
-  trainSet = data[:split_a]
-  validationSet = data[split_a:split_b]
-  testSet = data[:split_b]
-  # 75% training set, 10% validation set, 15% test set
-  return trainSet, testSet, validationSet
-
-def getClassCount(data):
-  # This data is assumed to contain class labels
-  classColumn = data[:,-1:]
-  classesVisited = []
-  classCount = 0
-  for item in np.nditer(classColumn):
-    if item not in classesVisited:
-      classesVisited.append(item)
-      classCount += 1
-  return classCount
 
 def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
   print('attributeCount ', attributeCount)
@@ -82,6 +48,71 @@ def feedforward(data, network):
     inputs = sigmoid(np.add(outputs, network['biases'][index]))
   return inputs
 
+def errorMatrix(results, classLabel):
+  errorMatrix = []
+  for index, result in enumerate(results):
+    # Assumes consecutive integer class labels beginning at index 0
+    if (index == classLabel):
+      errorMatrix.append(result-1)
+    else:
+      errorMatrix.append(result-0)
+  return errorMatrix
+
+'''
+Helper Functions
+'''
+def readData(relFilePath, hasColumnLabel, hasID):
+  data = np.genfromtxt(relFilePath, delimiter=',')
+  # Removing the column labels
+  if (hasColumnLabel):
+    data = data[1:, :]
+  # Removing the row that contains ID attribute
+  if (hasID):
+    # TODO want to check which column has id before removing first
+    data = data[:, 1:]
+  return data
+
+def trainTestValidationSplit(data):
+  # Randomizing the data
+  np.random.shuffle(data)
+  split_a = int(0.75 * data.shape[0])
+  split_b = int(0.85 * data.shape[0])
+  trainSet = data[:split_a]
+  validationSet = data[split_a:split_b]
+  testSet = data[:split_b]
+  # 75% training set, 10% validation set, 15% test set
+  return trainSet, testSet, validationSet
+
+def getClassCount(data):
+  # NOTE This data is assumed to contain class labels
+  classColumn = data[:,-1:]
+  classesVisited = []
+  classCount = 0
+  for item in np.nditer(classColumn):
+    if item not in classesVisited:
+      classesVisited.append(item)
+      classCount += 1
+  return classCount
+
+# This function converts class labels to consecutive integers
+def cleanClassLabels(data):
+  classLabels = []
+  # NOTE Assumes last column is the class column
+  classColumn = data[:, -1]
+  for row in np.nditer(classColumn):
+    if str(row) not in classLabels:
+      classLabels.append(str(row))
+  # Creating a mapping between class columns and consecutive integers
+  mapping = dict()
+  for index, label in enumerate(classLabels):
+    mapping[label] = index
+  # Applying the mapping to the class column
+  newClassColumn = np.apply_along_axis(lambda x: mapping[str(x[-1])], 1, data)
+  newClassColumn = newClassColumn.reshape(newClassColumn.shape[0],1)
+  # Putting together the cleaned data
+  data = np.append(data[:, :-2], newClassColumn, axis=1)
+  return data
+
 '''
 Parameters are:
   (String relativeFilePath,
@@ -93,10 +124,3 @@ Parameters are:
 
 sigmoid = np.vectorize(sigmoid)
 main('GlassData.csv', True, True, 1, 9)
-
-'''
-Next steps:
-1) Write activation function (sum of weights*inputs as input to sigmoid)
-2) Write feedforward function
-3) 
-'''
