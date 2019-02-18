@@ -1,11 +1,17 @@
 import numpy as np
+import math
 
 def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
   trainSet, testSet, validationSet = trainTestValidationSplit(relFilePath, hasColumnLabel, hasID)
   # print('testSet: \n', testSet)
   # print('trainSet: \n', trainSet)
   # print('validationSet: \n', validationSet)
-  weights = initNetwork(trainSet.shape[1]-1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
+  network = initNetwork(trainSet.shape[1]-1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
+  # Cutting off class labels
+  dataToFeed = trainSet[-1:,:-1]
+  outputs = np.apply_along_axis(feedforward, 1, dataToFeed, network)
+  print('outputs ', outputs)
+
   '''
   for layer in weights:
     print(np.shape(layer))
@@ -19,6 +25,7 @@ def trainTestValidationSplit(relFilePath, hasColumnLabel, hasID):
     data = data[1:, :]
   # Removing the row that contains ID attribute
   if (hasID):
+    # TODO want to check which column has id before removing first
     data = data[:, 1:]
   # Randomizing the data
   np.random.shuffle(data)
@@ -43,20 +50,37 @@ def getClassCount(data):
 
 def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
   print('attributeCount ', attributeCount)
-  network = list()
+  weights = list()
+  biases = list()
   # Connecting input layer to hidden layer
-  # Input layer weights; attributeCount + 1 column (b/c of bias)
-  hiddenLayer = np.random.rand(attributeCount + 1, hiddenLayerNodes)
-  network.append(hiddenLayer)
-  # Connecting hidden layers to other hidden layers or to output layer
+  weights.append(np.random.rand(hiddenLayerNodes, attributeCount))
+  biases.append(np.random.rand(hiddenLayerNodes, ))
+  # Connecting hidden layers to other hidden layers
   for layerIndex in range(0, hiddenLayers):
     index = layerIndex + 1
     if (index != hiddenLayers):
-      hiddenLayer = np.random.rand(hiddenLayerNodes + 1, hiddenLayerNodes)
-      network.append(hiddenLayer)
-  outputLayer = np.random.rand(hiddenLayerNodes + 1, outputNodes)
-  network.append(outputLayer)
-  return network
+      weights.append(np.random.rand(hiddenLayerNodes, hiddenLayerNodes))
+      biases.append(np.random.rand(hiddenLayerNodes, ))
+  # Connecting output layer
+  weights.append(np.random.rand(outputNodes, hiddenLayerNodes))
+  biases.append(np.random.rand(outputNodes, ))
+  return {'weights': weights, 'biases': biases}
+
+def sigmoid(input):
+  return 1.0 / (1.0 + math.exp(-input))
+
+def sigmoidPrime(input):
+  return input * (1 - input)
+
+def feedforward(data, network):
+  inputs = data
+  for index, layer in enumerate(network['weights']):
+    outputs = []
+    for neuronWeights in layer:
+      inputProduct = np.dot(neuronWeights, inputs)
+      outputs.append(inputProduct)
+    inputs = sigmoid(np.add(outputs, network['biases'][index]))
+  return inputs
 
 '''
 Parameters are:
@@ -66,4 +90,13 @@ Parameters are:
   Int numberOfHiddenLayers,
   Int numberOfNodesPerHiddenLayer)
 '''
+
+sigmoid = np.vectorize(sigmoid)
 main('GlassData.csv', True, True, 1, 9)
+
+'''
+Next steps:
+1) Write activation function (sum of weights*inputs as input to sigmoid)
+2) Write feedforward function
+3) 
+'''
