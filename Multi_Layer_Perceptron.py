@@ -3,19 +3,19 @@ import math
 
 def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
   data = readData(relFilePath, hasColumnLabel, hasID)
-  cleanClassLabels(data)
+  data = cleanClassLabels(data)
   trainSet, testSet, validationSet = trainTestValidationSplit(data)
   # print('testSet: \n', testSet)
   # print('trainSet: \n', trainSet)
   # print('validationSet: \n', validationSet)
   network = initNetwork(trainSet.shape[1]-1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
+  train(network, trainSet, 1, 1, 1)
   # Cutting off class labels
-  dataToFeed = trainSet[-1:,:-1]
-  outputs = np.apply_along_axis(feedforward, 1, dataToFeed, network)
-  print('outputs ', outputs)
+  #dataToFeed = trainSet[-1:,:-1]
+  #outputs = np.apply_along_axis(feedforward, 1, dataToFeed, network)
+  #print('outputs ', outputs)
 
 def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
-  print('attributeCount ', attributeCount)
   weights = list()
   biases = list()
   # Connecting input layer to hidden layer
@@ -32,22 +32,77 @@ def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
   biases.append(np.random.rand(outputNodes, ))
   return {'weights': weights, 'biases': biases}
 
+# Defines out
 def sigmoid(input):
   return 1.0 / (1.0 + math.exp(-input))
 
+# Defines ∂out/∂net
 def sigmoidPrime(input):
   return input * (1 - input)
 
 def feedforward(data, network):
+  print('feeding forward')
   inputs = data
+  activations = []
   for index, layer in enumerate(network['weights']):
+    #print('layer ', layer)
     outputs = []
     for neuronWeights in layer:
       inputProduct = np.dot(neuronWeights, inputs)
       outputs.append(inputProduct)
     inputs = sigmoid(np.add(outputs, network['biases'][index]))
-  return inputs
+    activations.append(inputs)
+  return inputs, activations
 
+# backpropagates an entire training set
+def backpropagation(network, activations, classLabel):
+  deltaWeights = list()
+  for index in reversed(range(len(network['weights']))):
+    # Backpropagation for all other layers
+    if (index != len(network) - 1):
+      print('Layer ', index)
+    # Backpropagation for output layer
+    else:
+      dEtotalBYdout = errorMatrix(activations[index], classLabel)
+      doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
+      dnetBYweight = activations[index-1]
+      print('dEtotalBYdout ', dEtotalBYdout)
+      print('doutBYdnet ', doutBYdnet)
+      print('dnetBYweight ', dnetBYweight)
+  return deltaWeights
+
+def train(network, data, learningRate, momentum, epochs):
+  # TODO change terminating conditions
+  for epoch in range(epochs):
+    # Remove class labels before feeding forward
+    dataToFeed = data[:, :-1]
+    classLabels = data[:, -1:]
+    #print('filledNetwork ', np.full((dataToFeed.shape[0], 1), network))
+    #outputs, activations = np.apply_along_axis(feedforward, 1, dataToFeed, network)
+    for index, row in enumerate(dataToFeed):
+      outputs, activations = feedforward(row, network)
+      print('outputs ', outputs)
+      print('activations ', activations)
+      deltaWeights = backpropagation(network, activations, classLabels[index])
+
+# Assumes consecutive integer clas labels beginning at index 0
+def decodePrediction(probabilityDistribution):
+  '''
+  call this method with
+  outputs = np.apply_along_axis(decodePrediction, 1, outputs)
+  outputs = np.reshape(outputs, (outputs.shape[0], 1))
+  '''
+  highestProbability = 0
+  prediction = 0
+  index = 0
+  for probability in np.nditer(probabilityDistribution):
+    if (probability > highestProbability):
+      prediction = index
+      highestProbability = probability
+    index += 1
+  return prediction
+
+# Defines ∂Etotal/∂out 
 def errorMatrix(results, classLabel):
   errorMatrix = []
   for index, result in enumerate(results):
@@ -122,5 +177,9 @@ Parameters are:
   Int numberOfNodesPerHiddenLayer)
 '''
 
+'''
+Next Steps:
+Back propagate
+'''
 sigmoid = np.vectorize(sigmoid)
 main('GlassData.csv', True, True, 1, 9)
