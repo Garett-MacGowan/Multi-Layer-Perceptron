@@ -1,3 +1,9 @@
+'''
+Author: Garett MacGowan
+Student Number: 10197107
+CISC 452 Neural and Genetic Computing
+'''
+
 import numpy as np
 import math
 
@@ -45,6 +51,7 @@ def feedforward(data, network):
   print('feeding forward')
   inputs = data
   activations = []
+  activations.append(inputs)
   for index, layer in enumerate(network['weights']):
     #print('layer ', layer)
     outputs = []
@@ -58,25 +65,39 @@ def feedforward(data, network):
 # backpropagates an entire training set
 def backpropagation(network, activations, classLabel):
   deltaWeights = list()
+  backpropagatingError = None
   for index in reversed(range(len(network['weights']))):
-    #print('network shape ', network['weights'][index].shape)
+    print('index', index)
     # Backpropagation for all other layers
-    if (index != len(network) - 1):
-      print('Layer ', index)
+    if (index != len(network['weights'])-1):
+      doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
+      dnetBYweight = np.array(activations[index-1])
+      dnetBYweight = np.reshape(dnetBYweight, (dnetBYweight.shape[0], 1))
+      dnetBYweight = np.full((dnetBYweight.shape[0], backpropagatingError.shape[0]), dnetBYweight)
+      intermediate = np.multiply(backpropagatingError, network['weights'][index])
+      backpropagatingError = np.multiply(intermediate, doutBYdnet)
+      
+      dJBYdW = np.dot(dnetBYweight, backpropagatingError)
+      deltaWeights.append(dJBYdW)
     # Backpropagation for output layer
     else:
       dEtotalBYdout = np.array(errorMatrix(activations[index], classLabel))
       doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
       dnetBYweight = np.array(activations[index-1])
-      #print('dEtotalBYdout ', dEtotalBYdout)
-      #print('doutBYdnet ', doutBYdnet)
-      #print('dnetBYweight ', dnetBYweight)
-      intermediate = np.multiply(dEtotalBYdout, doutBYdnet)
-      intermediate = np.reshape(intermediate, (intermediate.shape[0], 1))
-      deltaWeights.insert(0, np.multiply(intermediate, dnetBYweight))
-      print(deltaWeights)
-
+      # print('dEtotalBYdout ', dEtotalBYdout)
+      # print('doutBYdnet ', doutBYdnet)
+      # print('dnetBYweight ', dnetBYweight)
+      # print('dEtotalBYdout shape ', dEtotalBYdout.shape)
+      # print('doutBYdnet shape', doutBYdnet.shape)
+      # print('dnetBYweight shape', dnetBYweight.shape)
+      backpropagatingError = np.multiply(dEtotalBYdout, doutBYdnet)
+      backpropagatingError = np.reshape(backpropagatingError, (backpropagatingError.shape[0], 1))
+      deltaWeights.append(np.multiply(backpropagatingError, dnetBYweight))
   return deltaWeights
+
+def updateWeights(network, deltaWeights, learningRate, momentum):
+  for index in range(len(network['weights'])):
+    np.subtract(network['weights'][index], np.multiply(learningRate, deltaWeights[index]))
 
 def train(network, data, learningRate, momentum, epochs):
   # TODO change terminating conditions
@@ -91,6 +112,8 @@ def train(network, data, learningRate, momentum, epochs):
       #print('outputs ', outputs)
       #print('activations ', activations)
       deltaWeights = backpropagation(network, activations, classLabels[index])
+      updateWeights(network, deltaWeights, learningRate, momentum)
+  print('training complete')
 
 # Assumes consecutive integer clas labels beginning at index 0
 def decodePrediction(probabilityDistribution):
@@ -189,4 +212,4 @@ Next Steps:
 Back propagate
 '''
 sigmoid = np.vectorize(sigmoid)
-main('GlassData.csv', True, True, 1, 9)
+main('GlassData.csv', True, True, 2, 9) 
