@@ -8,7 +8,7 @@ def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
   # print('testSet: \n', testSet)
   # print('trainSet: \n', trainSet)
   # print('validationSet: \n', validationSet)
-  network = initNetwork(trainSet.shape[1]-1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
+  network = initNetwork(trainSet.shape[1] - 1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
   train(network, trainSet, 1, 1, 1)
   # Cutting off class labels
   #dataToFeed = trainSet[-1:,:-1]
@@ -19,17 +19,18 @@ def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
   weights = list()
   biases = list()
   # Connecting input layer to hidden layer
-  weights.append(np.random.rand(hiddenLayerNodes, attributeCount))
-  biases.append(np.random.rand(hiddenLayerNodes, ))
+  #print('attribute count ', attributeCount)
+  weights.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, attributeCount)))
+  biases.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, )))
   # Connecting hidden layers to other hidden layers
   for layerIndex in range(0, hiddenLayers):
     index = layerIndex + 1
     if (index != hiddenLayers):
-      weights.append(np.random.rand(hiddenLayerNodes, hiddenLayerNodes))
-      biases.append(np.random.rand(hiddenLayerNodes, ))
+      weights.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, hiddenLayerNodes)))
+      biases.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, )))
   # Connecting output layer
-  weights.append(np.random.rand(outputNodes, hiddenLayerNodes))
-  biases.append(np.random.rand(outputNodes, ))
+  weights.append(np.random.uniform(low=-1, high=1, size=(outputNodes, hiddenLayerNodes)))
+  biases.append(np.random.uniform(low=-1, high=1, size=(outputNodes, )))
   return {'weights': weights, 'biases': biases}
 
 # Defines out
@@ -58,17 +59,23 @@ def feedforward(data, network):
 def backpropagation(network, activations, classLabel):
   deltaWeights = list()
   for index in reversed(range(len(network['weights']))):
+    #print('network shape ', network['weights'][index].shape)
     # Backpropagation for all other layers
     if (index != len(network) - 1):
       print('Layer ', index)
     # Backpropagation for output layer
     else:
-      dEtotalBYdout = errorMatrix(activations[index], classLabel)
+      dEtotalBYdout = np.array(errorMatrix(activations[index], classLabel))
       doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
-      dnetBYweight = activations[index-1]
-      print('dEtotalBYdout ', dEtotalBYdout)
-      print('doutBYdnet ', doutBYdnet)
-      print('dnetBYweight ', dnetBYweight)
+      dnetBYweight = np.array(activations[index-1])
+      #print('dEtotalBYdout ', dEtotalBYdout)
+      #print('doutBYdnet ', doutBYdnet)
+      #print('dnetBYweight ', dnetBYweight)
+      intermediate = np.multiply(dEtotalBYdout, doutBYdnet)
+      intermediate = np.reshape(intermediate, (intermediate.shape[0], 1))
+      deltaWeights.insert(0, np.multiply(intermediate, dnetBYweight))
+      print(deltaWeights)
+
   return deltaWeights
 
 def train(network, data, learningRate, momentum, epochs):
@@ -81,8 +88,8 @@ def train(network, data, learningRate, momentum, epochs):
     #outputs, activations = np.apply_along_axis(feedforward, 1, dataToFeed, network)
     for index, row in enumerate(dataToFeed):
       outputs, activations = feedforward(row, network)
-      print('outputs ', outputs)
-      print('activations ', activations)
+      #print('outputs ', outputs)
+      #print('activations ', activations)
       deltaWeights = backpropagation(network, activations, classLabels[index])
 
 # Assumes consecutive integer clas labels beginning at index 0
@@ -165,7 +172,7 @@ def cleanClassLabels(data):
   newClassColumn = np.apply_along_axis(lambda x: mapping[str(x[-1])], 1, data)
   newClassColumn = newClassColumn.reshape(newClassColumn.shape[0],1)
   # Putting together the cleaned data
-  data = np.append(data[:, :-2], newClassColumn, axis=1)
+  data = np.append(data[:, :-1], newClassColumn, axis=1)
   return data
 
 '''
