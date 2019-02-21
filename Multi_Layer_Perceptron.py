@@ -15,10 +15,8 @@ def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
   # print('trainSet: \n', trainSet)
   # print('validationSet: \n', validationSet)
   network = initNetwork(trainSet.shape[1] - 1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
-  train(network, trainSet, 1, 1, 1)
-  # Cutting off class labels
-  #dataToFeed = trainSet[-1:,:-1]
-  #outputs = np.apply_along_axis(feedforward, 1, dataToFeed, network)
+  network = train(network, trainSet, 1, 1, 2)
+  evaluator(network, testSet)
   #print('outputs ', outputs)
 
 def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
@@ -26,17 +24,17 @@ def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
   biases = list()
   # Connecting input layer to hidden layer
   #print('attribute count ', attributeCount)
-  weights.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, attributeCount)))
-  biases.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, )))
+  weights.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, attributeCount)))
+  biases.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, )))
   # Connecting hidden layers to other hidden layers
   for layerIndex in range(0, hiddenLayers):
     index = layerIndex + 1
     if (index != hiddenLayers):
-      weights.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, hiddenLayerNodes)))
-      biases.append(np.random.uniform(low=-1, high=1, size=(hiddenLayerNodes, )))
+      weights.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, hiddenLayerNodes)))
+      biases.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, )))
   # Connecting output layer
-  weights.append(np.random.uniform(low=-1, high=1, size=(outputNodes, hiddenLayerNodes)))
-  biases.append(np.random.uniform(low=-1, high=1, size=(outputNodes, )))
+  weights.append(np.random.uniform(low=0.1, high=0.9, size=(outputNodes, hiddenLayerNodes)))
+  biases.append(np.random.uniform(low=0.1, high=0.9, size=(outputNodes, )))
   return {'weights': weights, 'biases': biases}
 
 # Defines out
@@ -48,7 +46,7 @@ def sigmoidPrime(input):
   return input * (1 - input)
 
 def feedforward(data, network):
-  print('feeding forward')
+  #print('feeding forward')
   inputs = data
   activations = []
   activations.append(inputs)
@@ -67,7 +65,7 @@ def backpropagation(network, activations, classLabel):
   deltaWeights = list()
   backpropagatingError = None
   for index in reversed(range(len(network['weights']))):
-    print('index', index)
+    #print('index', index)
     # Backpropagation for all other layers
     if (index != len(network['weights'])-1):
       doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
@@ -96,8 +94,16 @@ def backpropagation(network, activations, classLabel):
   return deltaWeights
 
 def updateWeights(network, deltaWeights, learningRate, momentum):
+  newWeights = list()
   for index in range(len(network['weights'])):
-    np.subtract(network['weights'][index], np.multiply(learningRate, deltaWeights[index]))
+    deltaWeightsFinal = np.multiply(learningRate, deltaWeights[index])
+    print('weights ', network['weights'][index])
+    print('deltaWeightsFinal ', deltaWeightsFinal)
+    newWeights.append(np.subtract(network['weights'][index], deltaWeightsFinal))
+    print('newWeights ', newWeights)
+    quit()
+  network['weights'] = newWeights
+  return network
 
 def train(network, data, learningRate, momentum, epochs):
   # TODO change terminating conditions
@@ -112,8 +118,11 @@ def train(network, data, learningRate, momentum, epochs):
       #print('outputs ', outputs)
       #print('activations ', activations)
       deltaWeights = backpropagation(network, activations, classLabels[index])
-      updateWeights(network, deltaWeights, learningRate, momentum)
+      network = updateWeights(network, deltaWeights, learningRate, momentum)
+    #print(str(epoch/epochs*100) + '% complete')
+    evaluator(network, data)
   print('training complete')
+  return network
 
 # Assumes consecutive integer clas labels beginning at index 0
 def decodePrediction(probabilityDistribution):
@@ -156,6 +165,43 @@ def readData(relFilePath, hasColumnLabel, hasID):
     # TODO want to check which column has id before removing first
     data = data[:, 1:]
   return data
+
+'''
+def outputResults(initialWeights, finalWeights, totalIterations, precisionAndRecallArray, confusionMatrixArray):
+  text_file = open('output.txt', 'w')
+  text_file.write('Initial weights: \n')
+  for iw in list(initialWeights):
+    text_file.write(str(iw) + '\n')
+  text_file.write('\n')
+  text_file.write('Final weights: \n')
+  for fw in list(finalWeights):
+    text_file.write(str(fw) + '\n')
+  text_file.write('\n')
+  text_file.write('Total iterations: \n' + str(totalIterations) + '\n')
+  for i in range(0,3):
+    text_file.write('Class ' + str(i+1) + ', Precision: ' + str(precisionAndRecallArray[i][0]) + ' Recall: ' + str(precisionAndRecallArray[i][1]) + '\n')
+  text_file.write('\n')
+  text_file.write('Confusion matrix: \n')
+  for j in range(len(confusionMatrixArray)):
+    text_file.write('Class ' + str(j) + '\n')
+    for k in range(len(confusionMatrixArray[j])):
+      text_file.write(str(confusionMatrixArray[j][k]) + '\n')
+    text_file.write('\n')
+  text_file.close()
+'''
+
+def evaluator(network, data):
+  dataToFeed = data[:, :-1]
+  classLabels = data[:, -1:]
+  print('evaluator')
+  correctlyClassifiedCount = 0
+  for index, row in enumerate(dataToFeed):
+    outputs, activations = feedforward(row, network)
+    outputs = decodePrediction(outputs)
+    if (outputs == int(classLabels[index])):
+      correctlyClassifiedCount += 1
+  print(correctlyClassifiedCount / classLabels.shape[0])
+
 
 def trainTestValidationSplit(data):
   # Randomizing the data
@@ -207,9 +253,5 @@ Parameters are:
   Int numberOfNodesPerHiddenLayer)
 '''
 
-'''
-Next Steps:
-Back propagate
-'''
 sigmoid = np.vectorize(sigmoid)
-main('GlassData.csv', True, True, 2, 9) 
+main('GlassData.csv', True, True, 1, 9) 
