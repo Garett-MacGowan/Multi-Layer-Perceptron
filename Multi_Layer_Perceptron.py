@@ -7,38 +7,40 @@ CISC 452 Neural and Genetic Computing
 import numpy as np
 import math
 
-def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes):
+def main(relFilePath, hasColumnLabel, hasID, hiddenLayers, hiddenLayerNodes, learningRate, momentum, epochs):
   data = readData(relFilePath, hasColumnLabel, hasID)
   data = cleanClassLabels(data)
-  trainSet, testSet, validationSet = trainTestValidationSplit(data)
-  # print('testSet: \n', testSet)
-  # print('trainSet: \n', trainSet)
-  # print('validationSet: \n', validationSet)
-  network = initNetwork(trainSet.shape[1] - 1, hiddenLayers, hiddenLayerNodes, getClassCount(trainSet))
-  network = train(network, trainSet, 1, 1, 2)
-  evaluator(network, testSet)
-  #print('outputs ', outputs)
+  data = normalize(data)
+  classCount = getClassCount(data)
+  trainSet, testSet, validationSet = trainTestValidationSplit(data, classCount)
+  network = initNetwork(trainSet.shape[1] - 1, hiddenLayers, hiddenLayerNodes, classCount)
+  initialWeights = network['weights']
+  network = train(network, trainSet, validationSet, learningRate, momentum, epochs)
+  print(str(evaluator(network, testSet) * 100) + '% accuracy on the testing set')
+  outputResults(initialWeights, network['weights'], learningRate, momentum, hiddenLayers, hiddenLayerNodes, classCount)
 
 def initNetwork(attributeCount, hiddenLayers, hiddenLayerNodes, outputNodes):
   weights = list()
   biases = list()
   # Connecting input layer to hidden layer
   #print('attribute count ', attributeCount)
-  weights.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, attributeCount)))
-  biases.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, )))
+  weights.append(np.random.rand(hiddenLayerNodes, attributeCount))
+  biases.append(np.ones(hiddenLayerNodes, ))
   # Connecting hidden layers to other hidden layers
   for layerIndex in range(0, hiddenLayers):
     index = layerIndex + 1
     if (index != hiddenLayers):
-      weights.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, hiddenLayerNodes)))
-      biases.append(np.random.uniform(low=0.1, high=0.9, size=(hiddenLayerNodes, )))
+      weights.append(np.random.rand(hiddenLayerNodes, hiddenLayerNodes))
+      biases.append(np.ones(hiddenLayerNodes, ))
   # Connecting output layer
-  weights.append(np.random.uniform(low=0.1, high=0.9, size=(outputNodes, hiddenLayerNodes)))
-  biases.append(np.random.uniform(low=0.1, high=0.9, size=(outputNodes, )))
+  weights.append(np.random.rand(outputNodes, hiddenLayerNodes))
+  biases.append(np.ones(outputNodes, ))
   return {'weights': weights, 'biases': biases}
 
 # Defines out
 def sigmoid(input):
+  if (input < 0):
+    return (1 - (1 / (1 + math.exp(input))))
   return 1.0 / (1.0 + math.exp(-input))
 
 # Defines ∂out/∂net
@@ -46,91 +48,123 @@ def sigmoidPrime(input):
   return input * (1 - input)
 
 def feedforward(data, network):
-  #print('feeding forward')
   inputs = data
   activations = []
   activations.append(inputs)
   for index, layer in enumerate(network['weights']):
-    #print('layer ', layer)
     outputs = []
     for neuronWeights in layer:
       inputProduct = np.dot(neuronWeights, inputs)
       outputs.append(inputProduct)
+    # Biases currently not included since they're not trained in backpropagation
     inputs = sigmoid(np.add(outputs, network['biases'][index]))
+    #inputs = sigmoid(outputs)
     activations.append(inputs)
   return inputs, activations
 
-# backpropagates an entire training set
+# # Something is wrong here.
+# def backpropagation(network, activations, classLabel):
+#   deltaWeights = list()
+#   backpropagatingError = None
+#   for index in reversed(range(len(network['weights']))):
+#     # Backpropagation for all other layers
+#     if (index != len(network['weights'])-1):
+#       doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
+#       dnetBYweight = np.array(activations[index-1])
+#       dnetBYweight = np.reshape(dnetBYweight, (dnetBYweight.shape[0], 1))
+#       dnetBYweight = np.full((dnetBYweight.shape[0], backpropagatingError.shape[0]), dnetBYweight)
+#       intermediate = np.multiply(backpropagatingError, network['weights'][index])
+#       backpropagatingError = np.multiply(intermediate, doutBYdnet)
+#       dJBYdW = np.dot(dnetBYweight, backpropagatingError)
+#       deltaWeights.append(dJBYdW)
+#     # Backpropagation for output layer
+#     else:
+#       dEtotalBYdout = np.array(errorMatrix(activations[index], classLabel))
+#       doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
+#       dnetBYweight = np.array(activations[index-1])
+#       backpropagatingError = np.multiply(dEtotalBYdout, doutBYdnet)
+#       backpropagatingError = np.reshape(backpropagatingError, (backpropagatingError.shape[0], 1))
+#       deltaWeights.append(np.multiply(backpropagatingError, dnetBYweight))
+#   return deltaWeights
+
+# Something is wrong here.
 def backpropagation(network, activations, classLabel):
   deltaWeights = list()
   backpropagatingError = None
   for index in reversed(range(len(network['weights']))):
-    #print('index', index)
     # Backpropagation for all other layers
     if (index != len(network['weights'])-1):
-      doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
+      # Something wrong here?
       dnetBYweight = np.array(activations[index-1])
+      #print('dnetBYweight ', dnetBYweight)
       dnetBYweight = np.reshape(dnetBYweight, (dnetBYweight.shape[0], 1))
       dnetBYweight = np.full((dnetBYweight.shape[0], backpropagatingError.shape[0]), dnetBYweight)
+
+      # Should be correct? w2t * e3
+      backpropagatingError = np.reshape(backpropagatingError, (1, backpropagatingError.shape[0]))
+      backpropagatingError = np.full((network['weights'][index].shape[0], backpropagatingError.shape[1]), backpropagatingError)
       intermediate = np.multiply(backpropagatingError, network['weights'][index])
-      backpropagatingError = np.multiply(intermediate, doutBYdnet)
       
+      # Should be correct? f'(z2)
+      doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
+      doutBYdnet = np.full((intermediate.shape[0], intermediate.shape[1]), doutBYdnet)
+      backpropagatingError = np.multiply(intermediate, doutBYdnet)
+
+      # Something wrong here?
+      #print('backpropagatingError ', backpropagatingError)
       dJBYdW = np.dot(dnetBYweight, backpropagatingError)
       deltaWeights.append(dJBYdW)
-    # Backpropagation for output layer
+    # Backpropagation for output layer (Should be correct)
     else:
       dEtotalBYdout = np.array(errorMatrix(activations[index], classLabel))
       doutBYdnet = np.array(list(map(sigmoidPrime, activations[index])))
       dnetBYweight = np.array(activations[index-1])
-      # print('dEtotalBYdout ', dEtotalBYdout)
-      # print('doutBYdnet ', doutBYdnet)
-      # print('dnetBYweight ', dnetBYweight)
-      # print('dEtotalBYdout shape ', dEtotalBYdout.shape)
-      # print('doutBYdnet shape', doutBYdnet.shape)
-      # print('dnetBYweight shape', dnetBYweight.shape)
+      dnetBYweight = np.reshape(dnetBYweight, (dnetBYweight.shape[0], 1))
       backpropagatingError = np.multiply(dEtotalBYdout, doutBYdnet)
       backpropagatingError = np.reshape(backpropagatingError, (backpropagatingError.shape[0], 1))
       deltaWeights.append(np.multiply(backpropagatingError, dnetBYweight))
   return deltaWeights
 
-def updateWeights(network, deltaWeights, learningRate, momentum):
+def updateWeights(network, deltaWeights, previousIterDeltaWeights, learningRate, momentum):
   newWeights = list()
   for index in range(len(network['weights'])):
     deltaWeightsFinal = np.multiply(learningRate, deltaWeights[index])
-    print('weights ', network['weights'][index])
-    print('deltaWeightsFinal ', deltaWeightsFinal)
+    # Applying momentum
+    if (previousIterDeltaWeights != None):
+      momentumDelta = np.multiply(momentum, previousIterDeltaWeights[index])
+      deltaWeightsFinal = np.add(deltaWeightsFinal, momentumDelta)
     newWeights.append(np.subtract(network['weights'][index], deltaWeightsFinal))
-    print('newWeights ', newWeights)
-    quit()
   network['weights'] = newWeights
   return network
 
-def train(network, data, learningRate, momentum, epochs):
-  # TODO change terminating conditions
+def train(network, trainingData, validationData, learningRate, momentum, epochs):
+  previousIterDeltaWeights = None
+  validationAccuracy = 0
   for epoch in range(epochs):
-    # Remove class labels before feeding forward
-    dataToFeed = data[:, :-1]
-    classLabels = data[:, -1:]
-    #print('filledNetwork ', np.full((dataToFeed.shape[0], 1), network))
-    #outputs, activations = np.apply_along_axis(feedforward, 1, dataToFeed, network)
+    # Removing class labels before feeding forward
+    dataToFeed = trainingData[:, :-1]
+    classLabels = trainingData[:, -1:]
+    deltaWeights = []
     for index, row in enumerate(dataToFeed):
       outputs, activations = feedforward(row, network)
-      #print('outputs ', outputs)
-      #print('activations ', activations)
-      deltaWeights = backpropagation(network, activations, classLabels[index])
-      network = updateWeights(network, deltaWeights, learningRate, momentum)
-    #print(str(epoch/epochs*100) + '% complete')
-    evaluator(network, data)
+      deltaWeights.append(backpropagation(network, activations, classLabels[index]))
+    # Taking the mean of the delta weights to find the gradient
+    deltaWeights = np.mean(deltaWeights, axis=0)
+    network = updateWeights(network, deltaWeights, previousIterDeltaWeights, learningRate, momentum)
+    previousIterDeltaWeights = deltaWeights
+    print(str(round(epoch/epochs*100, 3)) + '% complete ' + 'training set accuracy ' + str(evaluator(network, trainingData) * 100) + '%' )
+    # Early stopping condition: validation accuracy diverging (decreasing)
+    currentValidationAccuracy = evaluator(network, validationData)
+    if (currentValidationAccuracy < validationAccuracy):
+      break
   print('training complete')
   return network
 
-# Assumes consecutive integer clas labels beginning at index 0
+'''
+Converts a probability distribution to a class label.
+Assumes consecutive integer class labels beginning at index 0
+'''
 def decodePrediction(probabilityDistribution):
-  '''
-  call this method with
-  outputs = np.apply_along_axis(decodePrediction, 1, outputs)
-  outputs = np.reshape(outputs, (outputs.shape[0], 1))
-  '''
   highestProbability = 0
   prediction = 0
   index = 0
@@ -152,9 +186,47 @@ def errorMatrix(results, classLabel):
       errorMatrix.append(result-0)
   return errorMatrix
 
-'''
-Helper Functions
-'''
+def outputResults(initialWeights, finalWeights, learningRate, momentum, hiddenLayers, nodesPerHiddenLayer, classCount):
+  text_file = open('output.txt', 'w')
+  text_file.write('Learning rate: ' + str(learningRate) + '\n')
+  text_file.write('Learning rate is chosen as such through trial and error \n')
+  text_file.write('\n')
+  text_file.write('Momentum: ' + str(momentum) + '\n')
+  text_file.write('Momentum is chosen as such through trial and error \n')
+  text_file.write('\n')
+  text_file.write('I have used a sigmoid activation function so that I can create a probability distribution for the class predictions \n')
+  text_file.write('Sigmoid is also used so that the network is differentiable everywhere \n')
+  text_file.write('\n')
+  text_file.write('Number of hidden layers: ' + str(hiddenLayers) + '\n')
+  text_file.write('There should not be too many hidden layers. This helps to avoid overfitting \n')
+  text_file.write('\n')
+  text_file.write('Number of nodes in each hidden layer: ' + str(nodesPerHiddenLayer) + '\n')
+  text_file.write('There should be the same number of nodes in hidden layer as in input layer to allow for complex relations between all attributes \n')
+  text_file.write('\n')
+  text_file.write('Number of nodes in output layer: ' + str(classCount) + '\n')
+  text_file.write('There should be the same number of nodes in the output layer as there are classes to prevent crosstalk \n')
+  text_file.write('\n')
+  text_file.write('Regularization: \n')
+  text_file.write('I have used early stopping based on when my validation accuracy decreases as my main regularization approach \n')
+  text_file.write('\n')
+  text_file.write('Preprocessing: \n')
+  text_file.write('I have removed the ID attribute from the data because it could give an unfair advantage to the algorithm \n')
+  text_file.write('I have also normalized the attributes (between 0 and 1) so that no one attribute is given more importance over another \n')
+  text_file.write('\n')
+  text_file.write('Training, validation, and testing split \n')
+  text_file.write('The split follows 75% training, 10% validation, and 15% testing \n')
+  text_file.write('Each set is statistically equivalent. That is, they have the same proportion of each class relative to their size \n')
+  text_file.write('Initial weights: \n')
+  for iw in list(initialWeights):
+    text_file.write(str(iw) + '\n')
+  text_file.write('\n')
+  text_file.write('Final weights: \n')
+  for fw in list(finalWeights):
+    text_file.write(str(fw) + '\n')
+  text_file.write('\n')
+  text_file.close()
+
+# Reads the data from the relative file path and stores it as a numpy array
 def readData(relFilePath, hasColumnLabel, hasID):
   data = np.genfromtxt(relFilePath, delimiter=',')
   # Removing the column labels
@@ -166,56 +238,41 @@ def readData(relFilePath, hasColumnLabel, hasID):
     data = data[:, 1:]
   return data
 
-'''
-def outputResults(initialWeights, finalWeights, totalIterations, precisionAndRecallArray, confusionMatrixArray):
-  text_file = open('output.txt', 'w')
-  text_file.write('Initial weights: \n')
-  for iw in list(initialWeights):
-    text_file.write(str(iw) + '\n')
-  text_file.write('\n')
-  text_file.write('Final weights: \n')
-  for fw in list(finalWeights):
-    text_file.write(str(fw) + '\n')
-  text_file.write('\n')
-  text_file.write('Total iterations: \n' + str(totalIterations) + '\n')
-  for i in range(0,3):
-    text_file.write('Class ' + str(i+1) + ', Precision: ' + str(precisionAndRecallArray[i][0]) + ' Recall: ' + str(precisionAndRecallArray[i][1]) + '\n')
-  text_file.write('\n')
-  text_file.write('Confusion matrix: \n')
-  for j in range(len(confusionMatrixArray)):
-    text_file.write('Class ' + str(j) + '\n')
-    for k in range(len(confusionMatrixArray[j])):
-      text_file.write(str(confusionMatrixArray[j][k]) + '\n')
-    text_file.write('\n')
-  text_file.close()
-'''
-
+# Returns the prediction accuracy for a given set
 def evaluator(network, data):
   dataToFeed = data[:, :-1]
   classLabels = data[:, -1:]
-  print('evaluator')
-  correctlyClassifiedCount = 0
+  correctlyClassifiedCount = 0.0
   for index, row in enumerate(dataToFeed):
     outputs, activations = feedforward(row, network)
     outputs = decodePrediction(outputs)
     if (outputs == int(classLabels[index])):
       correctlyClassifiedCount += 1
-  print(correctlyClassifiedCount / classLabels.shape[0])
+  return (correctlyClassifiedCount / classLabels.shape[0])
 
-
-def trainTestValidationSplit(data):
+# 75% training set, 10% validation set, 15% test set with equal class distribution
+def trainTestValidationSplit(data, classCount):
   # Randomizing the data
   np.random.shuffle(data)
-  split_a = int(0.75 * data.shape[0])
-  split_b = int(0.85 * data.shape[0])
-  trainSet = data[:split_a]
-  validationSet = data[split_a:split_b]
-  testSet = data[:split_b]
-  # 75% training set, 10% validation set, 15% test set
+  # Separating data into separate arrays based on class
+  dataByClass = list()
+  for index in range(classCount):
+    dataByClass.append(data[data[:, -1] == index, :])
+  # Creating empty arrays to append to
+  trainSet = np.array([]).reshape(0,data.shape[1])
+  validationSet = np.array([]).reshape(0,data.shape[1])
+  testSet = np.array([]).reshape(0,data.shape[1])
+  # Appending correct proportion of data for each class into final sets
+  for arr in dataByClass:
+    split_a = int(0.75 * arr.shape[0])
+    split_b = int(0.85 * arr.shape[0])
+    trainSet = np.append(trainSet, arr[:split_a], axis=0)
+    validationSet = np.append(validationSet, arr[split_a:split_b], axis=0)
+    testSet = np.append(testSet, arr[split_b:], axis=0)
   return trainSet, testSet, validationSet
 
 def getClassCount(data):
-  # NOTE This data is assumed to contain class labels
+  # NOTE This data is assumed to contain class labels in the last column
   classColumn = data[:,-1:]
   classesVisited = []
   classCount = 0
@@ -244,14 +301,26 @@ def cleanClassLabels(data):
   data = np.append(data[:, :-1], newClassColumn, axis=1)
   return data
 
+# Normalizing all attributes to a range between 0 and 1 via max normalization
+def normalize(data):
+  # Don't want to normalize the class column
+  dataToNormalize = data[:, :-1]
+  classLabels = data[:, -1:]
+  normalizedData = dataToNormalize / dataToNormalize.max(axis=0)
+  normalizedData = np.concatenate((normalizedData, classLabels), axis=1)
+  return normalizedData
+
 '''
 Parameters are:
   (String relativeFilePath,
   Boolean columnLablesPresent,
   Boolean IDColumnPresent,
   Int numberOfHiddenLayers,
-  Int numberOfNodesPerHiddenLayer)
+  Int numberOfNodesPerHiddenLayer,
+  Int learningRate,
+  Int momentum,
+  Int epochs)
 '''
 
 sigmoid = np.vectorize(sigmoid)
-main('GlassData.csv', True, True, 1, 9) 
+main('GlassData.csv', True, True, 1, 9, 0.01, 0.001, 100000)
